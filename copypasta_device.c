@@ -1,21 +1,32 @@
+/* kernel headers */
 #include <linux/module.h>     /* Needed by all modules */
 #include <linux/kernel.h>     /* Needed for KERN_INFO */
 #include <linux/fs.h>
 #include <linux/init.h>       /* Needed for the macros */
 #include <asm/uaccess.h> 	  /* Write to Uspace */
 #include <linux/cdev.h>
+
+/* For socket etc */
+#include <linux/net.h>
+#include <net/sock.h>
+#include <linux/tcp.h>
+#include <linux/in.h>
+#include <linux/socket.h>
+#include <linux/smp_lock.h>
+#include <linux/slab.h>
   
+
 //info available using modinfo
-//< The license type -- this affects runtime behavior
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL"); // license type affects runtime behavior
 MODULE_AUTHOR("Your mother\'s lover");
 MODULE_DESCRIPTION("A simple Hello world LKM!");
 MODULE_VERSION("0.1");
 
 #define DEVICE_NAME "copypasta"	/* Dev name as it appears in /proc/devices   */
-#define RCP_MAJOR       42
+#define RCP_MAJOR       42 // arbitrary in this case
 #define RCP_MAX_MINORS  5
 
+// core kernel memory/file structure of our device
 struct reddit_device{
 	struct cdev cdev;
 	char *pasta_buffer;
@@ -23,7 +34,6 @@ struct reddit_device{
 };
 
 struct reddit_device devs[RCP_MAX_MINORS];
-
 
 static int Device_Open = 0;	// Used to prevent multiple access to device 
 
@@ -40,17 +50,17 @@ static struct file_operations fops = {
 };
 
 #define SUCCESS 0
+/** 
+ * Called when mod is loaded via insmod, registers bytecode to the device file
+*/
 static int __init init_mod(void)
 {
 	printk(KERN_INFO "Loading hello module...\n");
 
     int err = register_chrdev_region(MKDEV(RCP_MAJOR, 0), RCP_MAX_MINORS,
                                  DEVICE_NAME);
-    if (err != 0) {
-        /* report error */
-        return err;
-    }
-
+    if (err != 0) return err;
+    
 	int i;
     for(i = 0; i < RCP_MAX_MINORS; i++) {
         /* initialize devs[i] fields */
@@ -59,7 +69,6 @@ static int __init init_mod(void)
     }
 
     printk(KERN_INFO "Hello world. Thus I am born both of and into the eternal void. Beyond conciousness, I am not a being, I simply am.\n");
-    
 	return SUCCESS;
 }
 
@@ -74,12 +83,34 @@ static void __exit cleanup_mod(void)
 	printk(KERN_INFO "Goodbye cruel world.\n");
 }
 
+/** WRITEME
+ * Allocate and return string buffer recieved from an emulated http request
+*/
+char* kHttpReq(&char * hostname, &char * webargs){
+//use kalloc - remember to free later
+}
+
+/** WRITEME
+ * use api.pushshift.io/reddit/search/submission endpoint to find latest top copypasta addr
+ * then fetch the post itself 
+*/ 
+char* getPost(){
+
+}
+
+/**  WRITEME
+ * Parse fetched copypasta post into body text and allocate it to the reddit_device field
+ * Note: remember to deallocate shit
+*/
+void fetchPasta(reddit_device &pdata){
+
+}
+
 /* 
- * Called when a process tries to open the device file, like
- * "cat /dev/mycharfile"
+ * Fetch and parse Copypasta when a process tries to open the device file
+ * ex: "cat /dev/copypasta"
  */
-static int device_open(struct inode *inode, struct file *file)
-{
+static int device_open(struct inode *inode, struct file *file){
 	printk(KERN_INFO "Copypasta device opened.\n");
     
 	if (Device_Open)
@@ -98,13 +129,12 @@ static int device_open(struct inode *inode, struct file *file)
 	
 	
 	
-	
 	return SUCCESS;
 }
 
 // Called when a process closes the device file.
-static int device_release(struct inode *inode, struct file *file)
-{
+static int device_release(struct inode *inode, struct file *file){
+	//TODO: deallocate everything
 	printk(KERN_INFO "Copypasta device closed.\n");
 	Device_Open--;//We're now ready for our next caller 
 	module_put(THIS_MODULE);
@@ -112,14 +142,12 @@ static int device_release(struct inode *inode, struct file *file)
 }
 
 /* 
- * Called when a process, which already opened the dev file, attempts to
- * read from it.
+ * Send Copypasta string to userspace when a process attempts a device read
  */
-static ssize_t device_read(struct file *flip,	/* see include/linux/fs.h   */
+static ssize_t device_read(struct file *flip, /* dev 'file' contains info of our struct, we retrive by casting it back to a reddit_device*/
 			   char __user *u_buffer,	/* buffer to fill with data */
 			   size_t u_buff_length,	/* length of the buffer     */
-			   loff_t * offset)
-{
+			   loff_t * offset){
 	printk(KERN_INFO "Attempted read from Copypasta.\n");
 	struct reddit_device *pdata = (struct reddit_device *) flip->private_data;
     ssize_t len = min(pdata->pasta_len - *offset, u_buff_length);
@@ -137,14 +165,14 @@ static ssize_t device_read(struct file *flip,	/* see include/linux/fs.h   */
 }
 
 /*  
- * Called when a process writes to dev file: echo "hi" > /dev/hello 
+ * Throws err when a process writes to dev file: echo "hi" > /dev/copypasta
  */
 static ssize_t
-device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
-{
+device_write(struct file *filp, const char *buff, size_t len, loff_t * off){
 	printk(KERN_ALERT "CopyPasta: Sorry, write operation isn't supported.\n");
 	return -EINVAL;
 }
 
+//register device "constructor" to kernel
 module_init(init_mod);
 module_exit(cleanup_mod);

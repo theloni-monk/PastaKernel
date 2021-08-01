@@ -1,3 +1,4 @@
 {
-    "editor.tabCompletion": "on"
+    "editor.tabCompletion": "on",
+    "C_Cpp.intelliSenseEngine": "Tag Parser"
 }
