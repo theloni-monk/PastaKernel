@@ -12,7 +12,6 @@
 #include <linux/tcp.h>
 #include <linux/in.h>
 #include <linux/socket.h>
-#include <linux/smp_lock.h>
 #include <linux/slab.h>
   
 
@@ -86,7 +85,7 @@ static void __exit cleanup_mod(void)
 /** WRITEME
  * Allocate and return string buffer recieved from an emulated http request
 */
-char* kHttpReq(&char * hostname, &char * webargs){
+char* kHttpReq(char * hostname, char * webargs){
 //use kalloc - remember to free later
 }
 
@@ -102,7 +101,7 @@ char* getPost(){
  * Parse fetched copypasta post into body text and allocate it to the reddit_device field
  * Note: remember to deallocate shit
 */
-void fetchPasta(reddit_device &pdata){
+void fetchPasta(&reddit_device pdata){
 
 }
 
