@@ -111,7 +111,7 @@ char * kHttpReq(char *addr, char *hostname){
 	/* Build the socket. */
 	struct socket *sock;
 	int err;
-	err = sock_create(PF_INET, SOCK_STREAM, IPPROTO_TCP, &sock);
+	err = sock_create_kern(&init_net,PF_INET, SOCK_STREAM, IPPROTO_TCP, &sock);
 	if (err < 0){
 		printk(KERN_INFO "failed to create socket\n"); 
 		return "err"; 
@@ -157,7 +157,7 @@ char * kHttpReq(char *addr, char *hostname){
 	//type
 	msg.msg_iter.type = READ;
 	//address
-	msg.msg_name = NULL;
+	msg.msg_name = 0;
 	msg.msg_namelen = 0;
 	//msg_iter
 	msg.msg_iter.iov = &iov;
@@ -168,7 +168,7 @@ char * kHttpReq(char *addr, char *hostname){
 	msg.msg_control = NULL;
 	msg.msg_controllen = 0;
 	printk(KERN_INFO "msg constructed\n");
-	//FIXME: err code -22 => invalid argument
+	//FIXME: this project makes me want to off myself
 	int len = sock_sendmsg(sock, &msg);
 	if(len<0){
 		printk(KERN_INFO "msg send failed with code: %d", len); //FIXME: fails here
@@ -296,3 +296,29 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t *off){
 //register device "constructor" to kernel
 module_init(init_mod);
 module_exit(cleanup_mod);
+
+/** example output 8-15-21 build
+kern  :info  : [165695.537257] Loading hello module...
+
+kern  :info  : [165695.537262] Hello world. Thus I am born both of and into the eternal void. Beyond conciousness, I am not a being, I simply am.
+
+kern  :info  : [165698.583071] Copypasta device opened.
+kern  :info  : [165698.583074] Starting httpreq call.
+kern  :info  : [165698.583075] request called
+kern  :info  : [165698.583127] constructed socket
+kern  :info  : [165698.583127] constructed addr
+kern  :info  : [165698.583128] ip addr 8c416597
+kern  :info  : [165698.586411] socket connected
+kern  :info  : [165698.586415] allocated request:
+kern  :info  : [165698.586416] GET reddit.com/r/copypasta
+                                HTTP/1.1 
+                               Connection: close
+kern  :info  : [165698.586416] msg constructed
+//FIXME: fails on send
+kern  :info  : [165698.586421] msg send failed with code: -106
+kern  :info  : [165698.586422] Finished httpreq call.
+kern  :info  : [165698.586475] Attempted read from Copypasta.
+kern  :info  : [165698.596340] Attempted read from Copypasta.
+kern  :info  : [165698.596368] Copypasta device closed.
+kern  :info  : [165706.404957] Goodbye cruel world.
+*/
