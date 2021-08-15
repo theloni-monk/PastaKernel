@@ -18,13 +18,13 @@
 #include <linux/slab.h>
 
 //info available using modinfo
-MODULE_LICENSE("GPL"); // license type affects runtime behavior
-MODULE_AUTHOR("Your mother\'s lover");
-MODULE_DESCRIPTION("A simple Hello world LKM!");
-MODULE_VERSION("0.1");
+MODULE_LICENSE("GPL\n"); // license type affects runtime behavior
+MODULE_AUTHOR("Your mother\'s lover\n");
+MODULE_DESCRIPTION("A simple Hello world LKM!\n");
+MODULE_VERSION("0.1\n");
 
 #define DEVICE_NAME "copypasta" /* Dev name as it appears in /proc/devices   */
-//mknod copypasta c 42 2
+//sudo mknod /dev/copypasta c 42 2 to create it
 #define RCP_MAJOR 42			// arbitrary in this case
 #define RCP_MAX_MINORS 5
 
@@ -57,7 +57,7 @@ static struct file_operations fops = {
  * Called when mod is loaded via insmod, registers bytecode to the device file
 */
 static int __init init_mod(void){
-	printk(KERN_INFO "Loading hello module...\n");
+	printk(KERN_INFO "Loading hello module...\n\n");
 
 	int err = register_chrdev_region(MKDEV(RCP_MAJOR, 0), RCP_MAX_MINORS,
 									 DEVICE_NAME);
@@ -72,7 +72,7 @@ static int __init init_mod(void){
 		cdev_add(&devs[i].cdev, MKDEV(RCP_MAJOR, i), 1);
 	}
 
-	printk(KERN_INFO "Hello world. Thus I am born both of and into the eternal void. Beyond conciousness, I am not a being, I simply am.\n");
+	printk(KERN_INFO "Hello world. Thus I am born both of and into the eternal void. Beyond conciousness, I am not a being, I simply am.\n\n");
 	return SUCCESS;
 }
 
@@ -84,7 +84,16 @@ static void __exit cleanup_mod(void){
 		cdev_del(&devs[i].cdev);
 	}
 	unregister_chrdev_region(MKDEV(RCP_MAJOR, 0), RCP_MAX_MINORS);
-	printk(KERN_INFO "Goodbye cruel world.\n");
+	printk(KERN_INFO "Goodbye cruel world.\n\n");
+}
+
+static inline uint32_t makeIp (char * ip) {
+	uint32_t ret = 0x00000000;
+	ret |= 0xFF000000 & (ip[0] << 24);
+	ret |= 0x00FF0000 & (ip[1] << 16);
+	ret |= 0x0000FF00 & (ip[2] << 8);
+	ret |= 0x000000FF & ip[3];
+	return ret;
 }
 char __reddit_site_ip[4] = {151, 101, 65, 140};
 #define REDDIT_ADDR __reddit_site_ip
@@ -95,61 +104,110 @@ char __reddit_api_ip[4] = {172, 67, 174, 211};
  * Allocate and return string buffer recieved from an emulated http request
 */
 #define REQ_LEN 2048
+#define RES_LEN 4096
 char * kHttpReq(char *addr, char *hostname){
-	printk(KERN_INFO, "request called");
-	char *request = kmalloc(REQ_LEN,0); 
-	sprintf(request,
-			"GET %s HTTP/1.1 \nConnection: close ",
-			  hostname);
-	printk(KERN_INFO,"allocated request");
+	printk(KERN_INFO "request called\n");
+	
 	/* Build the socket. */
 	struct socket *sock;
 	int err;
 	err = sock_create(PF_INET, SOCK_STREAM, IPPROTO_TCP, &sock);
 	if (err < 0){
-		printk(KERN_INFO, "failed to create socket"); 
-		return "err";
+		printk(KERN_INFO "failed to create socket\n"); 
+		return "err"; 
 	}
+	printk(KERN_INFO "constructed socket\n");
+	
 	/* Build the address. */
 	struct sockaddr_in servaddr;
-	memset(&servaddr, 0, sizeof(servaddr));
+	memset(&servaddr, 0, sizeof(servaddr)); // zero out 
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_port = htons(PORT);
-	servaddr.sin_addr.s_addr =
-		htonl(addr);
-	printk(KERN_INFO, "constructed addr");
+	servaddr.sin_addr.s_addr = htonl(makeIp(addr));
+	printk(KERN_INFO "constructed addr\n");
+	printk(KERN_INFO "ip addr %x", servaddr.sin_addr.s_addr);
+	
 	/* Actually connect. */
 	err = sock->ops->connect(sock,
-								(struct sockaddr *)&servaddr,
-								sizeof(servaddr), O_RDWR);
+							(struct sockaddr *)&servaddr,
+							sizeof(servaddr), O_RDWR);
 	if (err< 0){
-		printk(KERN_INFO, "socket failed to connect");
+		printk(KERN_INFO "socket failed to connect\n");
 		return "err";
 	}
-	printk(KERN_INFO, "socket connected");
-	/* Send HTTP request. */
-	struct msghdr * msg;
-	struct iovec iov;
-	msg->msg_name = 0;
-	msg->msg_namelen = 0;
-	iov.iov_base = request;
+	printk(KERN_INFO "socket connected\n");
+
+	
+
+	// generate our request
+	const char *request = kzalloc(REQ_LEN,0); 
+	sprintf(request,
+			"GET %s HTTP/1.1 \r\nConnection: close\r\n",
+			  hostname);
+	printk(KERN_INFO "allocated request:\n");
+	printk(KERN_INFO "%s", request);
+
+	/* Send HTTP request. */ 
+	// init msg header
+	struct msghdr msg;
+	struct iovec iov; // io vector [struct of main buffer]
+	
 	iov.iov_len = REQ_LEN;
-	iov_iter_init(&msg->msg_iter, READ, &iov, 1, REQ_LEN);
-	msg->msg_control = NULL;
-	msg->msg_controllen = 0;
-	printk(KERN_INFO, "msg constructed");
-	int len = sock_sendmsg(sock, msg);
-	//TODO: handle err
-	printk(KERN_INFO, "msg set");
-	/* Read the response. */
-	len = sock_recvmsg(sock, msg, 0);
-	printk(KERN_INFO, "response recieved");
-	//FIXME: might have to do this in multiple recvs
-	char * ret = kmalloc(msg->msg_iter.iov->iov_len,0);
-    memcpy(ret, msg->msg_iter.iov->iov_base, len);
-	printk(KERN_INFO, "copied response to ret buffer");
-	return ret;
-	//FIXME: test this
+	iov.iov_base = request;
+	//type
+	msg.msg_iter.type = READ;
+	//address
+	msg.msg_name = NULL;
+	msg.msg_namelen = 0;
+	//msg_iter
+	msg.msg_iter.iov = &iov;
+	msg.msg_iter.iov_offset = 0;
+	msg.msg_iter.count = iov.iov_len;
+	msg.msg_iter.nr_segs = 1;
+	//control
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
+	printk(KERN_INFO "msg constructed\n");
+	//FIXME: err code -22 => invalid argument
+	int len = sock_sendmsg(sock, &msg);
+	if(len<0){
+		printk(KERN_INFO "msg send failed with code: %d", len); //FIXME: fails here
+		return "err";
+	}
+	printk(KERN_INFO, "msg sent\n");
+	
+
+	/* Read the response e.g. resize msg and read response into it*/
+	// re-init iov for reading
+	struct cmsghdr *cmhdr;
+	char control[1000]; //packet header buffer
+	msg.msg_control = &control;
+	msg.msg_controllen = sizeof(control);
+	msg.msg_name = &servaddr;
+	msg.msg_namelen = sizeof(servaddr);
+
+	iov.iov_len = RES_LEN;
+	char * resbuf = kzalloc(msg.msg_iter.iov->iov_len,0);
+	iov.iov_base = resbuf;
+	iov_iter_init(&msg.msg_iter, READ, &iov, 1, RES_LEN);
+	
+	len = sock_recvmsg(sock, &msg, 0);
+	if (len == -1) {
+		printk(KERN_INFO "error on recvmsg");
+		return "err";
+	} else {
+		unsigned char tos;
+		cmhdr = CMSG_FIRSTHDR(&msg);
+		while (cmhdr) { // iterate through packets of the response 
+			if (cmhdr->cmsg_level == IPPROTO_IP && cmhdr->cmsg_type == IP_TOS) {
+				// read the TOS byte in the IP header
+				tos = ((unsigned char *)CMSG_DATA(cmhdr))[0];
+			}
+			cmhdr = CMSG_NXTHDR(&msg, cmhdr);
+		}
+		printk(KERN_INFO "data read: %s, tos byte = %02X\n", resbuf, tos); 
+	}
+	return resbuf;
 }
 
 /** WRITEME
@@ -181,14 +239,16 @@ static int device_open(struct inode *inode, struct file *file){
 	struct reddit_device *pdata =
 		container_of(inode->i_cdev, struct reddit_device, cdev);
 
-	pdata->pasta_buffer = kHttpReq(REDDIT_ADDR, "reddit.com/r/copypasta");
-	pdata->pasta_len = 2048;
-	
 	/* validate access to device */
 	file->private_data = pdata;
 	//WRITEME fetch top copypasta post and load it into device pasta buffer
 
-	
+	printk(KERN_INFO "Starting httpreq call.\n");
+	const char * rhostname = "reddit.com/r/copypasta\n";
+	pdata->pasta_buffer = kHttpReq(REDDIT_ADDR, rhostname);
+	pdata->pasta_len = 2048;
+	printk(KERN_INFO "Finished httpreq call.\n");
+
 	return SUCCESS;
 }
 
